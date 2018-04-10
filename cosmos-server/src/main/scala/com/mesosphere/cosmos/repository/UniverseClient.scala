@@ -43,6 +43,7 @@ import io.circe.jawn.parse
 import io.netty.handler.codec.http.HttpResponseStatus
 import java.io.InputStream
 import java.nio.ByteBuffer
+import java.nio.charset.Charset
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.zip.ZipInputStream
@@ -157,7 +158,7 @@ final class DefaultUniverseClient(
       scope.counter("count").incr()
       Stat.time(scope.stat("histogram")) {
         decode[universe.v4.model.Repository](
-          Source.fromInputStream(bodyInputStream).mkString
+          Source.fromInputStream(bodyInputStream, "UTF-8").mkString
         ).getOrThrow
       }
     } else if (contentType.isCompatibleWith(MediaTypes.UniverseV3Repository)) {
@@ -165,7 +166,7 @@ final class DefaultUniverseClient(
       scope.counter("count").incr()
       Stat.time(scope.stat("histogram")) {
         decode[universe.v4.model.Repository](
-          Source.fromInputStream(bodyInputStream).mkString
+          Source.fromInputStream(bodyInputStream, "UTF-8").mkString
         ).getOrThrow
       }
     } else if (contentType.isCompatibleWith(MediaTypes.UniverseV2Repository)) {
@@ -202,11 +203,11 @@ final class DefaultUniverseClient(
     sourceUri: Uri,
     inputStream: InputStream
   ): universe.v4.model.Repository = {
-    val bundle = new ZipInputStream(inputStream)
+    val bundle = new ZipInputStream(inputStream, Charset.forName("UTF-8"))
     // getNextEntry() returns null when there are no more entries
     val universeRepository: V2ZipState = Iterator.continually {
       // Note: this closure is not technically pure. The variable bundle is mutated here.
-      Option(bundle.getNextEntry())
+      Option(bundle.getNextEntry)
     }.takeWhile(_.isDefined)
       .flatten
       .filter(!_.isDirectory)
@@ -214,7 +215,7 @@ final class DefaultUniverseClient(
       .filter(entryPath => entryPath.getNameCount > 2)
       .foldLeft(V2ZipState(None, Map.empty)) { (state, entryPath) =>
         // Note: this closure is not technically pure. The variable bundle is muted here.
-        val buffer = StreamIO.buffer(bundle).toByteArray()
+        val buffer = StreamIO.buffer(bundle).toByteArray
         processZipEntry(state, entryPath, buffer)
       }
 
